@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Controle de Absenteísmo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+
+    .filtros {
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      background: #fff;
+      padding: 10px 15px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    label {
+      font-weight: bold;
+      margin-right: 4px;
+    }
+
+    select, input[type="date"] {
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    th {
+      background-color: #e0e0e0;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      cursor: pointer;
+      background-color: #1976d2;
+      color: #fff;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    .resultado {
+      margin-top: 20px;
+      background: #fff;
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    .resultado h2 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 6px;
+      border-radius: 4px;
+      background-color: #eee;
+      margin: 2px;
+      font-size: 11px;
+    }
+
+    select.status {
+      padding: 4px 6px;
+      font-size: 12px;
+    }
+
+    #painel-indicadores {
+      margin-top: 30px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    #painel-indicadores h2 {
+      margin-top: 0;
+    }
+
+    .graficos-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 15px;
+    }
+
+    .grafico-card {
+      background: #fafafa;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
+    .resumo-mes {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #555;
+    }
+  </style>
+
+  <!-- Chart.js para os gráficos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <h1>Controle de Absenteísmo</h1>
+
+  <!-- FILTROS PRINCIPAIS -->
+  <div class="filtros">
+    <label for="data">Data:</label>
+    <input type="date" id="data">
+
+    <label for="setorFiltro">Setor:</label>
+    <select id="setorFiltro">
+      <option value="todos">Todos</option>
+    </select>
+
+    <label for="turnoFiltro">Turno:</label>
+    <select id="turnoFiltro">
+      <option value="todos">Todos</option>
+      <option value="MANHÃ">MANHÃ</option>
+      <option value="TARDE">TARDE</option>
+      <option value="NOITE">NOITE</option>
+      <option value="ADM">ADM</option>
+    </select>
+
+    <label for="logisticaFiltro">Interna / Externa:</label>
+    <select id="logisticaFiltro">
+      <option value="todos">Todos</option>
+      <option value="INTERNA">INTERNA</option>
+      <option value="EXTERNA">EXTERNA</option>
+    </select>
+
+    <button class="btn" onclick="aplicarFiltro()">Aplicar filtros</button>
+  </div>
+
+  <!-- TABELA PRINCIPAL -->
+  <table id="tabelaFuncionarios">
+    <thead>
+      <tr>
+        <th>Funcionário</th>
+        <th>Setor</th>
+        <th>Turno</th>
+        <th>Logística</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="corpoTabela"></tbody>
+  </table>
+
+  <br>
+
+  <!-- BOTÕES DE CÁLCULO / SALVAR / HISTÓRICO / EXPORTAÇÃO -->
+  <div class="filtros">
+    <button class="btn" onclick="calcularAbsenteismo()">Calcular Absenteísmo</button>
+
+    <button class="btn" onclick="salvarDia()">Salvar registro do dia</button>
+
+    <label for="historicoDataSelect">Histórico:</label>
+    <select id="historicoDataSelect">
+      <option value="">Selecione uma data</option>
+    </select>
+
+    <button class="btn" onclick="verHistorico()">Ver histórico</button>
+    <button class="btn" onclick="exportarCsv()">Exportar CSV (dia selecionado)</button>
+  </div>
+
+  <div class="resultado" id="resultado">
+    <h2>Resultados</h2>
+    <p>Selecione os status e clique em <strong>Calcular Absenteísmo</strong>.</p>
+  </div>
+
+  <!-- PAINEL DE INDICADORES -->
+  <section id="painel-indicadores" class="resultado">
+    <h2>Painel de Indicadores de Absenteísmo</h2>
+    <p>Selecione um mês do histórico para visualizar os gráficos de faltas.</p>
+
+    <div class="filtros" style="margin-bottom: 10px;">
+      <label for="mesHistoricoSelect">Mês (AAAA-MM):</label>
+      <select id="mesHistoricoSelect">
+        <option value="">Selecione um mês</option>
+      </select>
+      <button class="btn" onclick="gerarGraficosMes()">Gerar gráficos</button>
+    </div>
+
+    <div id="resumoMes" class="resumo-mes"></div>
+
+    <div class="graficos-container">
+      <div class="grafico-card">
+        <h3>Faltas por dia no mês</h3>
+        <canvas id="graficoFaltasDia"></canvas>
+      </div>
+      <div class="grafico-card">
+        <h3>Faltas por setor no mês</h3>
+        <canvas id="graficoFaltasSetor"></canvas>
+      </div>
+      <div class="grafico-card">
+        <h3>Faltas por turno no mês</h3>
+        <canvas id="graficoFaltasTurno"></canvas>
+      </div>
+    </div>
+  </section>
+
+<script>
+///////////////////////////////////////////////////////////////
+// LISTA COMPLETA DOS FUNCIONÁRIOS
+///////////////////////////////////////////////////////////////
+const dadosBrutos = `
+Nome	Funcao Exercida	Turno	Local	Setor	Logistica
+DIEGO RODRIGUES DOS SANTOS	ALMOXARIFE	TARDE	A220	SEPARAÇÃO	EXTERNA
+JOAO VITOR KENES GUILHERME	ALMOXARIFE	TARDE	A220	SEPARAÇÃO	EXTERNA
+NYCOLAS ALESSANDRO SILVA AMARAL	ALMOXARIFE	TARDE	A220	SEPARAÇÃO	EXTERNA
+RUAN DA SILVA MOREIRA	ALMOXARIFE	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+ALAN VIEIRA DE OLIVEIRA	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+ALTEMIR RODRIGUES DE OLIVEIRA	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+ANISIO BORGES SILVA	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+ANTONIO GALVAO JUNIOR	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+CLEISON GUSTAVO DA SILVA	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+COSME DE SOUZA SILVA	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+DANIEL OLIVEIRA NOGUEIRA	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+DANILO SILVA RIBEIRO	ALMOXARIFE I	Noite	A220	SEPARAÇÃO	EXTERNA
+DARIO PEREIRA DA SILVA	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+DAVID CARLOS DOS SANTOS	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+DAVID WELLINGTON DA SILVA LIMA	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+DONISETE BARROS	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+EDIVALDO SILVA DOS SANTOS	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+EDSON ALVES DOS SANTOS	ALMOXARIFE I	Noite	A220	SEPARAÇÃO	EXTERNA
+ERIC SANGAR SILVA PEREIRA	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+FERNANDO MARTINS SALVINO	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+GELITHI VIEIRA DO NASCIMENTO	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+GUSTAVO BATISTA NASCIMENTO	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+GUSTAVO BERNARDO PINTO	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+GUSTAVO HENRICH DE PAULA BOOS	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+HENRIQUE BARALDI DE MORAES	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+HERICK FERNANDO MELO DE JESUS	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+HUDSON DE LIMA SANTANA	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+IZAIAS FLORIANO	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+JOSE FLAVIO DA CRUZ SANTOS	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+JOSE LINDOMAR DE FIGUEREDO	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+JOSEMAR DA SILVA BARBOSA	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+KAIK NOVAK	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+LINCOLN FERREIRA JOSE	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+LUAN COSTA DE OLIVEIRA	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+MARCELINO DOS SANTOS ESTEVAO	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+MARCO AURELIO FARIA SANTOS	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+MATHEUS LUAN DE JESUS ALMEIDA	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+MATHEUS ROCHA RIBEIRO	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+ORIAS PEREIRA JARDIM JUNIOR	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+PAULO FERREIRA BELCHIOR	ALMOXARIFE I	Noite	A220	SEPARAÇÃO	EXTERNA
+RENAN FREIRE DOS SANTOS	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+RIVALDO MAXIMO DE SOUSA	ALMOXARIFE I	TARDE	A220	SEPARAÇÃO	EXTERNA
+ROGERIO MARCOS DAVI	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+RUAN MARINHO FERNANDES DE OLIVEIRA	ALMOXARIFE I	TARDE	A220	CASULO	EXTERNA
+THEODORO RAMOS NETO	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+VAGNER DE ARAUJO COELHO	ALMOXARIFE I	MANHÃ	A220	SEPARAÇÃO	EXTERNA
+WEBERT AZEVEDO DA SILVA	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+WELLINGTON DIEGO DA SILVA	ALMOXARIFE I	Noite	A220	SEPARAÇÃO	EXTERNA
+WESLEY DE SOUSA SANTOS	ALMOXARIFE I	NOITE	A220	SEPARAÇÃO	EXTERNA
+NATHANAEL DIAS ROCHA	ANALISTA DE LOGISTICA	MANHÃ	D345	EMBALAGEM	INTERNA
+ARIANE COELHO RIBEIRO PORTERO	ANALISTA DE PROJETOS PL	ADM	ADM	ADM	GESTÃO
+ELISA PAULINO DOS SANTOS	ANALISTA LOGISTICO	MANHÃ	GESTÃO	GESTÃO	GESTÃO
+MATEUS CARVALHO DE SANTANA SANTOS	ASSISTENTE ADM	NOITE	D345	EMBALAGEM	INTERNA
+ANDERSON CAVALCANTE VIEIRA	ASSISTENTE ADMINISTRATIVO I	NOITE	A220	SALINHA	EXTERNA
+DANIEL MOLITOR RAMOS	ASSISTENTE ADMINISTRATIVO I	TARDE	D345	EMBALAGEM	INTERNA
+GABRIEL FERREIRA DE OLIVEIRA	ASSISTENTE ADMINISTRATIVO I	TARDE	A220	SALINHA	EXTERNA
+JOAO VICTOR DA MOTA SOUSA	ASSISTENTE ADMINISTRATIVO I	FOLGUISTA	D345	6X2	INTERNA
+LEONARDO MOTA DIAS	ASSISTENTE ADMINISTRATIVO I	MANHÃ	A220	SALINHA	EXTERNA
+MURILLO OLIVEIRA DE SOUSA	ASSISTENTE ADMINISTRATIVO I	MANHÃ	D345	EMBALAGEM	INTERNA
+ROBERTA MARIA DA SILVA	ASSISTENTE ADMINISTRATIVO I	ADM	ADM	ADM	GESTÃO
+AIRTON DOS SANTOS COUTINHO	AUXILIAR DE LOGISTICA	MANHÃ	D345	MATERIA-PRIMA	INTERNA
+ALEX SANDRO DE OLIVEIRA	AUXILIAR DE LOGISTICA	TARDE	A460	TRIAGEM	INTERNA
+ALEX SIMON SOUZA DE ALMEIDA	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+ANTONIO PEREIRA DE JESUS	AUXILIAR DE LOGISTICA	TARDE	A220	CARREGAMENTO	EXTERNA
+ARTHUR ARAUJO DA SILVA	AUXILIAR DE LOGISTICA	ADM	D345	AVARIAS	INTERNA
+CAIO JOSE DA SILVA	AUXILIAR DE LOGISTICA	TARDE	B390	MATERIA-PRIMA	INTERNA
+CARLOS ALBERTO VICENTE SANTOS	AUXILIAR DE LOGISTICA	MANHÃ	A460	TRIAGEM	INTERNA
+CARLOS EDUARDO DE SOUZA LIMA	AUXILIAR DE LOGISTICA	NOITE	D55	ECO/ECD/ECR	EXTERNA
+CARLOS MARANHAO AMARO	AUXILIAR DE LOGISTICA	NOITE	A460	TRIAGEM	INTERNA
+CARLOS ROBERTO DOS SANTOS LOURENCO	AUXILIAR DE LOGISTICA	MANHÃ	A220	CARREGAMENTO	EXTERNA
+CASSIANO AUGUSTO RODRIGUES DE OLIVEIRA	AUXILIAR DE LOGISTICA	MANHÃ	A220	FORMATAÇÃO	EXTERNA
+CLEBER CASSIANO ROSA	AUXILIAR DE LOGISTICA	MANHÃ	B350	MATERIA-PRIMA	INTERNA
+CLEISSON EDUARDO DA SILVA VASQUES	AUXILIAR DE LOGISTICA	NOITE	D345	FORMATAÇÃO	EXTERNA
+DAVID SANTOS FREIRE	AUXILIAR DE LOGISTICA	MANHÃ	A220	CASULO	EXTERNA
+DIEGO JORGE REIS	AUXILIAR DE LOGISTICA	TARDE	D345	DESENVASE	INTERNA
+DIOGO OLIVEIRA FERREIRA	AUXILIAR DE LOGISTICA	MANHÃ	B350	MATERIA-PRIMA	INTERNA
+DOUGLAS MESSIAS DA SILVA	AUXILIAR DE LOGISTICA	TARDE	D55	ECO/ECD/ECR	EXTERNA
+EDER ALEXANDRE DE SOUZA SILVEIRA	AUXILIAR DE LOGISTICA	TARDE	D345	ESTEIRA	INTERNA
+EDILEI JONES CAVALCANTE	AUXILIAR DE LOGISTICA	MANHÃ	A220	CARREGAMENTO	EXTERNA
+ELIAS FRANCISCO DE SANTANA	AUXILIAR DE LOGISTICA	NOITE	D55	ESTEIRA	INTERNA
+ERICK GONCALVES	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+ERICK JONATHAN SIMON DE LIMA	AUXILIAR DE LOGISTICA	NOITE	D345	DESENVASE	INTERNA
+ERIZELTO ARAUJO SILVA	AUXILIAR DE LOGISTICA	ADM	D345	DESENVASE	INTERNA
+FELIPE CARLOS MARCHESI MACHADO	AUXILIAR DE LOGISTICA	TARDE	D345	DESENVASE	INTERNA
+FELIPE TEIXEIRA LIMA	AUXILIAR DE LOGISTICA	ADM	B380	RETENÇÃO	INTERNA
+FERNANDO RODRIGUES TEIXEIRA MIRANDA	AUXILIAR DE LOGISTICA	TARDE	D55	ECO/ECD/ECR	EXTERNA
+FRANCINALDO VIEIRA DA SILVA	AUXILIAR DE LOGISTICA	TARDE	A220	FORMATAÇÃO	EXTERNA
+GABRIEL HENRIQUE DE OLIVEIRA	AUXILIAR DE LOGISTICA	TARDE	A220	FORMATAÇÃO	EXTERNA
+GABRIEL NERY CAETANO	AUXILIAR DE LOGISTICA	NOITE	D345	DESENVASE	INTERNA
+GABRIEL OLIVEIRA DE TOLEDO SANTOS	AUXILIAR DE LOGISTICA	MANHÃ	D345	SELFCOLOR	INTERNA
+GILVAN GOMES MACHADO	AUXILIAR DE LOGISTICA	TARDE	A220	CARREGAMENTO	EXTERNA
+GLAUBER PEREIRA DE SOUZA	AUXILIAR DE LOGISTICA	TARDE	B390	MATERIA-PRIMA	INTERNA
+GREGORY DE OLIVEIRA SIMAO FILHO	AUXILIAR DE LOGISTICA	MANHÃ	A220	LOJINHA	EXTERNA
+GUILHERME ALMEIDA SANTOS DA SILVA	AUXILIAR DE LOGISTICA	NOITE	D345	TRIAGEM	INTERNA
+GUILHERME HENRIQUE	AUXILIAR DE LOGISTICA	NOITE	D345	DESENVASE	INTERNA
+GUILHERME VEIGA DE ARAUJO	AUXILIAR DE LOGISTICA	MANHÃ	A220	FORMATAÇÃO	EXTERNA
+HENRIQUE ALVES CAMPOS	AUXILIAR DE LOGISTICA	MANHÃ	D345	DESENVASE	interna
+JEFFERSON VIEIRA BARROS	AUXILIAR DE LOGISTICA	NOITE	A220	SEPARAÇÃO	EXTERNA
+JEREMIAS DA SILVA SOUZA	AUXILIAR DE LOGISTICA	TARDE	A220	CARREGAMENTO	EXTERNA
+JOAO VITOR LOPES FERREIRA	AUXILIAR DE LOGISTICA	TARDE	B390	MATERIA-PRIMA	INTERNA
+JONAS REIS DE OLIVEIRA	AUXILIAR DE LOGISTICA	MANHÃ	A220	CARREGAMENTO	EXTERNA
+JORGE JOSE MARCIC	AUXILIAR DE LOGISTICA	TARDE	A220	CARREGAMENTO	EXTERNA
+JOSE ABILIO DOS SANTOS	AUXILIAR DE LOGISTICA	MANHÃ	A220	CARREGAMENTO	EXTERNA
+JULIANO LUCAS DA SILVA	AUXILIAR DE LOGISTICA	Noite	A220	SEPARAÇÃO	EXTERNA
+KAIQUE GUIMARAES CARDOSO	AUXILIAR DE LOGISTICA	TARDE	A220	FORMATAÇÃO	EXTERNA
+KAON FRANK ANDRADE QUIRINO	AUXILIAR DE LOGISTICA	Noite	A220	CARREGAMENTO	EXTERNA
+KAUA COSME DA SILVA	AUXILIAR DE LOGISTICA	TARDE	D345	DESENVASE	INTERNA
+KAUAN GONCALVES ARRUDA	AUXILIAR DE LOGISTICA	TARDE	A220	FORMATAÇÃO	EXTERNA
+KAYNAN CRISTIAN DA SILVA OLIVEIRA	AUXILIAR DE LOGISTICA	MANHÃ	D55	ESTEIRA FABRICA 1	INTERNA 
+KAYO HENRIQUE MENDES DE OLIVEIRA	AUXILIAR DE LOGISTICA	TARDE	A220	CARREGAMENTO	EXTERNA
+KAYO WILLIAN DA SILVA DE OLIVEIRA	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+KEVIN DE OLIVEIRA ALVES	AUXILIAR DE LOGISTICA	MANHÃ	D55	ECO/ECD/ECR	EXTERNA
+KEVIN RODRIGUES DA SILVA FITIPALDE	AUXILIAR DE LOGISTICA	NOITE	A220	FORMATAÇÃO	EXTERNA
+LUCAS DE SOUZA LIMA	AUXILIAR DE LOGISTICA	MANHÃ	B350	MATERIA-PRIMA	INTERNA
+LUCAS SANCHES FLORENTINO	AUXILIAR DE LOGISTICA	MANHÃ	A220	CARREGAMENTO	EXTERNA
+LUCAS SIQUEIRA DE JESUS	AUXILIAR DE LOGISTICA	MANHÃ	D345	DESENVASE	INTERNA
+LUCIANO PERES MARTINS JUNIOR	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+LUIS CARLOS ALVES PEREIRA	AUXILIAR DE LOGISTICA	MANHÃ	A220	FORMATAÇÃO	EXTERNA
+LUIS FERNANDO SOARES DOS SANTOS	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+LUIS GUSTAVO DE MEDEIROS	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+LUIZ CARLOS DE ANDRADE	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+MARCIO FERNANDO DA SILVA	AUXILIAR DE LOGISTICA	MANHÃ	A220	FORMATAÇÃO	EXTERNA
+MARCO ANTONIO MAGNO	AUXILIAR DE LOGISTICA	MANHÃ	D345	DESENVASE	INTERNA
+MATHEUS FERREIRA NUNES	AUXILIAR DE LOGISTICA	MANHÃ	D55	ECO/ECD/ECR	EXTERNA
+MATHEUS OLIVEIRA SILVA	AUXILIAR DE LOGISTICA	MANHÃ	A220	FORMATAÇÃO	EXTERNA
+MICAEL FERREIRA DA SILVA	AUXILIAR DE LOGISTICA	NOITE	A220	SEPARAÇÃO	EXTERNA
+NATANAEL FERREIRA DOS SANTOS	AUXILIAR DE LOGISTICA	TARDE	D55	ECO/ECD/ECR	EXTERNA
+NATHAN DAVID GOMES	AUXILIAR DE LOGISTICA	TARDE	D55	FABRICA 1 	INTERNA
+NIKOLAS EZEKIEL DE SALES BARBOSA	AUXILIAR DE LOGISTICA	FOLGUISTA		6X2	INTERNA
+PEDRO FAREZIN SCOTTI	AUXILIAR DE LOGISTICA	TARDE	D345	SELFCOLOR	INTERNA
+RICARDO ABETINI	AUXILIAR DE LOGISTICA	TARDE	B390	TRIAGEM	INTERNA
+ROGERIO PAULO DA SILVA	AUXILIAR DE LOGISTICA	MANHÃ	A220	CARREGAMENTO	EXTERNA
+RUAN LONGO DOS SANTOS	AUXILIAR DE LOGISTICA	MANHÃ	D55	ECO/ECD/ECR	EXTERNA
+VAGNER DE SOUZA LEITE	AUXILIAR DE LOGISTICA	TARDE	A220	CARREGAMENTO	EXTERNA
+VICTOR HUGO OLIVEIRA DOS SANTOS	AUXILIAR DE LOGISTICA	NOITE	A220	SEPARAÇÃO	EXTERNA
+VINICIUS SANTOS GUIMARAES	AUXILIAR DE LOGISTICA	TARDE	A460	MATERIA-PRIMA	INTERNA
+WALLACE LOPES SILVA	AUXILIAR DE LOGISTICA	NOITE	A220	CARREGAMENTO	EXTERNA
+WILSON LOPES DE ABREU	AUXILIAR DE LOGISTICA	NOITE	B203	ESTEIRA SUVINIL	INTERNA
+ADEMIR COUTINHO	AUXILIAR DE LOGISTICA	NOITE	A220	FORMATAÇÃO	EXTERNA
+ERICK WILSON LIMA ALVES 	AUXILIAR DE LOGISTICA	NOITE	A220	FORMATAÇÃO	EXTERNA
+GUILHERME TOLEDANO	AUXILIAR DE LOGISTICA	MANHÃ	D345	DESENVASE	INTERNA
+CARLOS VITOR SANTOS NASCIMENTO	AUXILIAR DE LOGISTICA	INTERMEDIARIO	D345	SELFCOLOR	INTERNA
+GIUSEPE ROMELIO RODRIGUEZ	AUXILIAR DE LOGISTICA	MANHÃ	A460	TRIAGEM	INTERNA
+ALEX DA CONCEIÇÃO CAMARGO	AUXILIAR DE LOGISTICA	MANHÃ	D345	SUVINIL	INTERNA
+LEONARDO FEITOSA DA SILVA	AUXILIAR DE LOGISTICA	ADM	D345	AVARIAS	INTERNA
+DIEGO DA SILVA GALDINO	AUXILIAR DE LOGISTICA	TARDE	D345	DESENVASE	INTERNA
+MATHEUS LIMA SANTOS	AUXILIAR DE LOGISTICA	NOITE	D345	DESENVASE	INTERNA
+LEONARDO FEITOSA DA SILVA	AUXILIAR DE LOGISTICA (A MAIS)	MANHÃ	D345	DESENVASE	INTERNA
+ANTONIO APARECIDO GOMES SILVA	CARPINTEIRO	TARDE	A460	CARPINTARIA	INTERNA
+JAILSON DE LIMA BARROS	CARPINTEIRO	TARDE	A460	CARPINTARIA	INTERNA
+JAIME BARBOSA TACEO	CARPINTEIRO	MANHÃ	A460	CARPINTARIA	INTERNA
+JEOVA PEREIRA DOS SANTOS	CARPINTEIRO	MANHÃ	A460	CARPINTARIA	INTERNA
+VALDENI ALVES DE SOUZA	CARPINTEIRO	MANHÃ	A460	CARPINTARIA	INTERNA
+ANTONIO MARQUES DOS SANTOS SILVA	CONFERENTE I	ADM	A220	INVENTARIO	EXTERNA
+ARTUR BORGES DE JESUS	CONFERENTE I	MANHÃ	D55	ECO/ECD/ECR	EXTERNA
+CARLOS MAGNO DOS SANTOS	CONFERENTE I	MANHÃ	A220	CONFERÊNCIA	EXTERNA
+DEIVID DOS SANTOS SILVA	CONFERENTE I	TARDE	A220	CONFERÊNCIA	EXTERNA
+DIEGO ALVES CARVALHO	CONFERENTE I	TARDE	A220	CONFERÊNCIA	EXTERNA
+EDSON TAVARES DOS SANTOS	CONFERENTE I	TARDE	A220	CONFERÊNCIA	EXTERNA
+ERIGLAUBERT SILVA BERNARDO DE SOUSA	CONFERENTE I	NOITE	A220	CONFERÊNCIA	EXTERNA
+FELIPE DE LIMA	CONFERENTE I	NOITE	A220	CONFERÊNCIA	EXTERNA
+FRANCISCO DE SOUZA DA SILVA	CONFERENTE I	MANHÃ	A220	CONFERÊNCIA	EXTERNA
+JOAO VICTOR DE FREITAS DA SILVA	CONFERENTE I	TARDE	B390	MATERIA-PRIMA	INTERNA
+JOSE ANTONIO DE LUCENA	CONFERENTE I	TARDE	A220	CONFERÊNCIA	EXTERNA
+JOSE DOS SANTOS	CONFERENTE I	NOITE	A220	CONFERÊNCIA	EXTERNA
+JOSE ROBERTO ANDRADE DE SOUZA	CONFERENTE I	MANHÃ	A220	CONFERÊNCIA	EXTERNA
+LUCAS MATOS COSTA	CONFERENTE I	MANHÃ	A220	CONFERÊNCIA	EXTERNA
+MARCOS ROBERTO MARQUES	CONFERENTE I	MANHÃ	D345	EMBALAGEM	INTERNA
+MATHEUS VINICIUS BISPO FERREIRA	CONFERENTE I	MANHÃ	B350	MATERIA-PRIMA	INTERNA
+MAXUEL SILVA SOUZA	CONFERENTE I	ADM	D345	AVARIAS	INTERNA
+ROBERTO CARLOS ASSUNCAO	CONFERENTE I	MANHÃ	A220	CONFERÊNCIA	EXTERNA
+RODRIGO MUNIZ DOS SANTOS	CONFERENTE I	TARDE	D55	ECO/ECD/ECR	EXTERNA
+ROGERIO DA SILVA FERREIRA	CONFERENTE I	ADM	D345	ALMOX TECNICO	INTERNA
+BRUNO DOS SANTOS ANDRADE	COORDENADOR DE CONTRATO	ADM	ADM	ADM	GESTÃO
+FRANCISCO CRUZ DOS SANTOS	ENCARREGADO DE LOGISTICA                	NOITE	A220	GESTÃO	EXTERNA
+GABRIEL SILVA MEDEIROS	ENCARREGADO DE LOGISTICA                	TARDE	D345	GESTÃO	INTERNA
+JELCIVAN DOS SANTOS LIMA	ENCARREGADO DE LOGISTICA                	MANHÃ	A220	GESTÃO	EXTERNA
+MICHEL DA GUARDA	ENCARREGADO DE LOGISTICA                	TARDE	A220	GESTÃO	EXTERNA
+VAGNER GOMES DA SILVA	ENCARREGADO DE LOGISTICA                	MANHÃ	GERAL	GESTÃO	INTERNA
+ACASSIO DE JESUS PEREIRA MAGALHAES	OPERADOR DE EMPILHADEIRA	NOITE	B203	EMBALAGEM	INTERNA
+ADRIANO MAXIMO	OPERADOR DE EMPILHADEIRA	NOITE	D345	SUVINIL	INTERNA
+AILTON PEREIRA DOS SANTOS BRAGA	OPERADOR DE EMPILHADEIRA	TARDE	D345	EMBALAGEM/ SUVINIL	INTERNA
+ANDRE LOURENCO GIL	OPERADOR DE EMPILHADEIRA	FOLGUISTA	D345	NOVO TURNO	EXTERNA
+BRENO CESAR NOVAES DE SOUZA	OPERADOR DE EMPILHADEIRA	TARDE	D345	EMBALAGEM	INTERNA
+DIOGENES ANTONIO SOARES DE MATOS	OPERADOR DE EMPILHADEIRA	TARDE	D345	EMBALAGEM	INTERNA
+ELIESER VENANCIO DE SOUSA	OPERADOR DE EMPILHADEIRA	TARDE	D345	EMBALAGEM	INTERNA
+GILBERTO LUIZ CORRAL PLAZA	OPERADOR DE EMPILHADEIRA	MANHÃ	A460	TRIAGEM	INTERNA
+GILSON JUNIOR MARINHO BEZERRA	OPERADOR DE EMPILHADEIRA	MANHÃ	D345	EMBALAGEM	INTERNA
+JAIRO JOSE DA SILVA	OPERADOR DE EMPILHADEIRA	NOITE	D345	EMBALAGEM	INTERNA
+JOAO VICTOR ANDRADE CORREA	OPERADOR DE EMPILHADEIRA	ADM	D345	ALMOX TECNICO	INTERNA
+LEANDRO MUSSUHAUSER	OPERADOR DE EMPILHADEIRA	MANHÃ	D345	EMBALAGEM	INTERNA
+RAFAEL LUIZ DA SILVA	OPERADOR DE EMPILHADEIRA	MANHÃ	D345	EMBALAGEM / SUVINIL	INTERNA
+RAFAEL MARCELO DE PAULA	OPERADOR DE EMPILHADEIRA	TARDE	D345	EMBALAGEM	INTERNA
+RENATO SANTOS SILVA	OPERADOR DE EMPILHADEIRA	NOITE	D345	TRIAGEM	INTERNA
+RODRIGO SILVA PEREIRA	OPERADOR DE EMPILHADEIRA	NOITE	D345	EMBALAGEM	INTERNA
+VANDERLEI EMANUEL ALVES SANTANA	OPERADOR DE EMPILHADEIRA	TARDE	D345	TRIAGEM	INTERNA
+WILLIAM OLIVEIRA COSTA	OPERADOR DE EMPILHADEIRA	MANHÃ	D345	EMBALAGEM	INTERNA 
+TALES ALEXANDRE SANTOS NOVAIS	OPERADOR DE EMPILHADEIRA 	MANHÃ	D345	EMBALAGEM	INTERNA
+ARILDO BARBARA 	SUPERVISOR OPERACIONAL	MANHÃ	ADM	ADM	GESTÃO
+JOAO EMERSON DA SILVA	SUPERVISOR OPERACIONAL	TARDE	ADM	ADM	GESTÃO
+LEONARDO SOARES DE SOUZA	SUPERVISOR OPERACIONAL	NOITE	ADM	GESTÃO	GESTÃO
+THAIS DE MORAIS LEANDRO	SUPERVISORA OPERACIONAL	MANHÃ	A220	ADM	GESTÃO
+ALEX BATISTA DOS SANTOS	TECNICO DE SEGURANCA DO TRABALHO	ADM	ADM	ADM	GESTÃO
+DEBORA RIBEIRO SILVEIRA DA SILVA	TECNICO DE SEGURANCA DO TRABALHO PL	ADM	ADM	ADM	GESTÃO
+CARLOS LUIZ ALENCAR DE BRITO	TRATORISTA	TARDE	D345	EMBALAGEM	INTERNA
+CICERO HENRIQUE FERNANDES SILVA	TRATORISTA	TARDE	D345	EMBALAGEM	INTERNA
+JEAN RAIMUNDO PEREIRA	TRATORISTA I                            	FEIRISTA	D345	EMBALAGEM	INTERNA
+ALEXANDRE MATARUCO DE GODOY	TRATORISTA I                            	NOITE	D345	EMBALAGEM	INTERNA
+ANTONIO MARCOS TEIXEIRA PITA	TRATORISTA I                            	MANHÃ	D345	EMBALAGEM	INTERNA
+DEIVID DA SILVA DOS SANTOS	TRATORISTA I                            	MANHÃ	D345	EMBALAGEM	INTERNA
+HERMES EUGENIO DE BARROS	TRATORISTA I                            	NOITE	D345	EMBALAGEM	INTERNA
+JOAO ANTONIO DA SILVA JUNIOR	TRATORISTA I                            	TARDE	D345	EMBALAGEM	INTERNA
+LUCAS ANTONIO DA COSTA	TRATORISTA I                            	FOLGUISTA	D345	6X2	INTERNA
+MARCOS JOAO SOUTO PEREIRA	TRATORISTA I                            	MANHÃ	D345	EMBALAGEM	INTERNA
+PAULO ANTONIO DA SILVA	TRATORISTA I                            	NOITE	D345	EMBALAGEM	INTERNA
+WALLACE CUSTODIO DE PAULA	TRATORISTA I                            	ADM	D345	EMBALAGEM	INTERNA
+OSNEI DONISETE DA SILVA	TRATORISTA I                            	FOLGUISTA	D345	6X2	INTERNA
+`;
+
+///////////////////////////////////////////////////
+// NORMALIZAR TURNO E LOGÍSTICA
+///////////////////////////////////////////////////
+function normalizarTurno(turnoOriginal) {
+  const t = turnoOriginal.trim().toUpperCase();
+  if (t.includes("MANHÃ")) return "MANHÃ";
+  if (t.includes("TARDE")) return "TARDE";
+  if (t.includes("NOITE")) return "NOITE";
+  if (t === "ADM") return "ADM";
+  return t; // FOLGUISTA, INTERMEDIARIO, FEIRISTA etc.
+}
+
+function normalizarLogistica(valor) {
+  const v = valor.trim().toUpperCase();
+  if (v.includes("INTERNA")) return "INTERNA";
+  if (v.includes("EXTERNA")) return "EXTERNA";
+  return v;
+}
+
+///////////////////////////////////////////////////
+// MONTA ARRAY DE FUNCIONÁRIOS (SEM DUPLICADOS)
+///////////////////////////////////////////////////
+const funcionarios = [];
+const mapaChaves = new Set();
+
+dadosBrutos.split("\n").forEach((linha, index) => {
+  if (!linha.trim()) return;
+  if (index === 0) return; // cabeçalho
+
+  const partes = linha.split("\t");
+  if (partes.length < 6) return;
+
+  const nome = partes[0].trim();
+  const turnoOriginal = partes[2] ? partes[2].trim() : "";
+  const setor = partes[4] ? partes[4].trim() : "";
+  const logisticaOriginal = partes[5] ? partes[5].trim() : "";
+
+  const turno = normalizarTurno(turnoOriginal);
+  const logistica = normalizarLogistica(logisticaOriginal);
+
+  const chave = `${nome}|${setor}|${turno}|${logistica}`;
+  if (!mapaChaves.has(chave)) {
+    mapaChaves.add(chave);
+    funcionarios.push({ nome, setor, turno, logistica });
+  }
+});
+
+///////////////////////////////////////////////////
+// HISTÓRICO NO LOCALSTORAGE
+///////////////////////////////////////////////////
+let historico = {};
+try {
+  const salvo = localStorage.getItem("historicoAbs");
+  if (salvo) historico = JSON.parse(salvo);
+} catch (e) {
+  historico = {};
+}
+
+function salvarHistoricoLocal() {
+  localStorage.setItem("historicoAbs", JSON.stringify(historico));
+}
+
+///////////////////////////////////////////////////
+// PREENCHER SELECT DE SETOR E DATAS DO HISTÓRICO
+///////////////////////////////////////////////////
+function preencherSelectSetor() {
+  const select = document.getElementById("setorFiltro");
+  const setores = new Set();
+  funcionarios.forEach(f => {
+    if (f.setor) setores.add(f.setor);
+  });
+  const ordenados = Array.from(setores).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  ordenados.forEach(setor => {
+    const opt = document.createElement("option");
+    opt.value = setor;
+    opt.textContent = setor;
+    select.appendChild(opt);
+  });
+}
+
+function atualizarListaDatasHistorico() {
+  const sel = document.getElementById("historicoDataSelect");
+  sel.innerHTML = '<option value="">Selecione uma data</option>';
+  Object.keys(historico).sort().forEach(data => {
+    const opt = document.createElement("option");
+    opt.value = data;
+    opt.textContent = data;
+    sel.appendChild(opt);
+  });
+}
+
+function atualizarListaMesesHistorico() {
+  const sel = document.getElementById("mesHistoricoSelect");
+  sel.innerHTML = '<option value="">Selecione um mês</option>';
+  const meses = new Set();
+  Object.keys(historico).forEach(data => {
+    // data no formato AAAA-MM-DD -> mês AAAA-MM
+    if (data && data.length >= 7) {
+      meses.add(data.substring(0, 7));
+    }
+  });
+  Array.from(meses).sort().forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m; // ex: 2025-01
+    sel.appendChild(opt);
+  });
+}
+
+///////////////////////////////////////////////////
+// CARREGAR TABELA (MODO ATUAL)
+///////////////////////////////////////////////////
+function carregarTabela(lista) {
+  const corpo = document.getElementById("corpoTabela");
+  corpo.innerHTML = "";
+
+  lista.forEach(f => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${f.nome}</td>
+      <td>${f.setor}</td>
+      <td>${f.turno}</td>
+      <td>${f.logistica}</td>
+      <td>
+        <select class="status">
+          <option value="PRESENTE">Presente</option>
+          <option value="FALTA">Falta</option>
+          <option value="ABONO">Abono</option>
+          <option value="FOLGA">Folga</option>
+          <option value="ATESTADO">Atestado</option>
+          <option value="SUSPENSAO">Suspensão</option>
+          <option value="ABANDONO">Abandono</option>
+        </select>
+      </td>
+    `;
+    corpo.appendChild(tr);
+  });
+}
+
+///////////////////////////////////////////////////
+// CARREGAR TABELA A PARTIR DO HISTÓRICO (COM STATUS)
+///////////////////////////////////////////////////
+function carregarTabelaRegistros(registros) {
+  const corpo = document.getElementById("corpoTabela");
+  corpo.innerHTML = "";
+
+  registros.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.nome}</td>
+      <td>${r.setor}</td>
+      <td>${r.turno}</td>
+      <td>${r.logistica}</td>
+      <td>
+        <select class="status">
+          <option value="PRESENTE">Presente</option>
+          <option value="FALTA">Falta</option>
+          <option value="ABONO">Abono</option>
+          <option value="FOLGA">Folga</option>
+          <option value="ATESTADO">Atestado</option>
+          <option value="SUSPENSAO">Suspensão</option>
+          <option value="ABANDONO">Abandono</option>
+        </select>
+      </td>
+    `;
+    const selectStatus = tr.querySelector(".status");
+    selectStatus.value = r.status || "PRESENTE";
+    corpo.appendChild(tr);
+  });
+}
+
+///////////////////////////////////////////////////
+// FILTRO
+///////////////////////////////////////////////////
+function aplicarFiltro() {
+  const setor = document.getElementById("setorFiltro").value;
+  const turno = document.getElementById("turnoFiltro").value;
+  const logistica = document.getElementById("logisticaFiltro").value;
+
+  const filtrados = funcionarios.filter(f => {
+    const setorOk = (setor === "todos" || f.setor === setor);
+    const turnoOk = (turno === "todos" || f.turno === turno);
+    const logOk = (logistica === "todos" || f.logistica === logistica);
+    return setorOk && turnoOk && logOk;
+  });
+
+  carregarTabela(filtrados);
+  document.getElementById("resultado").innerHTML = `
+    <h2>Resultados</h2>
+    <p>Selecione os status e clique em <strong>Calcular Absenteísmo</strong>.</p>
+  `;
+}
+
+///////////////////////////////////////////////////
+// CALCULAR ABSENTEÍSMO (TABELA NA TELA)
+///////////////////////////////////////////////////
+function calcularAbsenteismo() {
+  const linhas = document.querySelectorAll("#corpoTabela tr");
+  if (linhas.length === 0) {
+    alert("Nenhum funcionário na tabela para calcular.");
+    return;
+  }
+
+  const grupos = {};
+
+  linhas.forEach(linha => {
+    const setor = linha.children[1].textContent;
+    const turno = linha.children[2].textContent;
+    const logistica = linha.children[3].textContent;
+    const status = linha.querySelector(".status").value;
+
+    const chave = `${setor} - ${turno} - ${logistica}`;
+
+    if (!grupos[chave]) {
+      grupos[chave] = { total: 0, faltas: 0 };
+    }
+
+    grupos[chave].total += 1;
+
+    const naoConta = ["PRESENTE", "ABONO", "FOLGA"];
+    if (!naoConta.includes(status)) {
+      grupos[chave].faltas += 1;
+    }
+  });
+
+  let html = "<h2>Resultados</h2>";
+  const data = document.getElementById("data").value;
+  if (data) {
+    html += `<p><strong>Data:</strong> ${data}</p>`;
+  }
+
+  html += "<ul>";
+  Object.keys(grupos).sort().forEach(chave => {
+    const g = grupos[chave];
+    const taxa = (g.faltas / g.total) * 100;
+    html += `<li>
+      <span class="tag">${chave}</span>
+      — Total: ${g.total} | Faltas: ${g.faltas}
+      | Taxa de absenteísmo: <strong>${taxa.toFixed(2)}%</strong>
+    </li>`;
+  });
+  html += "</ul>";
+
+  document.getElementById("resultado").innerHTML = html;
+}
+
+///////////////////////////////////////////////////
+// SALVAR REGISTRO DO DIA NO HISTÓRICO
+///////////////////////////////////////////////////
+function salvarDia() {
+  const data = document.getElementById("data").value;
+  if (!data) {
+    alert("Selecione a data antes de salvar o registro.");
+    return;
+  }
+
+  const linhas = document.querySelectorAll("#corpoTabela tr");
+  if (linhas.length === 0) {
+    alert("Nenhum funcionário na tabela para salvar.");
+    return;
+  }
+
+  const registrosDia = [];
+  linhas.forEach(linha => {
+    const nome = linha.children[0].textContent;
+    const setor = linha.children[1].textContent;
+    const turno = linha.children[2].textContent;
+    const logistica = linha.children[3].textContent;
+    const status = linha.querySelector(".status").value;
+
+    registrosDia.push({ nome, setor, turno, logistica, status });
+  });
+
+  historico[data] = registrosDia;
+  salvarHistoricoLocal();
+  atualizarListaDatasHistorico();
+  atualizarListaMesesHistorico();
+  alert("Registro salvo para a data " + data);
+}
+
+///////////////////////////////////////////////////
+// VER HISTÓRICO DE UM DIA (CARREGA NA TABELA)
+///////////////////////////////////////////////////
+function verHistorico() {
+  const sel = document.getElementById("historicoDataSelect");
+  const data = sel.value;
+  if (!data) {
+    alert("Selecione uma data no histórico.");
+    return;
+  }
+
+  const registros = historico[data];
+  if (!registros || registros.length === 0) {
+    alert("Não há registros salvos para esta data.");
+    return;
+  }
+
+  carregarTabelaRegistros(registros);
+
+  document.getElementById("resultado").innerHTML = `
+    <h2>Resultados</h2>
+    <p>Histórico carregado para a data: <strong>${data}</strong>. 
+    Você pode recalcular o absenteísmo clicando em <strong>Calcular Absenteísmo</strong>.</p>
+  `;
+}
+
+///////////////////////////////////////////////////
+// EXPORTAR CSV DO DIA SELECIONADO NO HISTÓRICO
+///////////////////////////////////////////////////
+function exportarCsv() {
+  const sel = document.getElementById("historicoDataSelect");
+  const data = sel.value;
+  if (!data) {
+    alert("Selecione uma data no histórico para exportar.");
+    return;
+  }
+
+  const registros = historico[data];
+  if (!registros || registros.length === 0) {
+    alert("Não há registros salvos para esta data.");
+    return;
+  }
+
+  let csv = "Data;Nome;Setor;Turno;Logistica;Status\n";
+  registros.forEach(r => {
+    csv += `${data};${r.nome};${r.setor};${r.turno};${r.logistica};${r.status}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `absenteismo_${data}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+///////////////////////////////////////////////////
+// GRÁFICOS (PAINEL POR MÊS)
+///////////////////////////////////////////////////
+let graficoFaltasDia = null;
+let graficoFaltasSetor = null;
+let graficoFaltasTurno = null;
+
+function gerarGraficosMes() {
+  const mesSel = document.getElementById("mesHistoricoSelect").value;
+  if (!mesSel) {
+    alert("Selecione um mês (AAAA-MM) para gerar os gráficos.");
+    return;
+  }
+
+  // Agregações
+  const faltasPorDia = {};   // data (AAAA-MM-DD) -> qtd faltas
+  const faltasPorSetor = {}; // setor -> qtd faltas
+  const faltasPorTurno = {}; // turno -> qtd faltas
+  let totalFaltasMes = 0;
+  let totalRegistrosMes = 0;
+
+  const naoConta = ["PRESENTE", "ABONO", "FOLGA"];
+
+  Object.keys(historico).forEach(data => {
+    if (data.startsWith(mesSel)) {
+      const registros = historico[data];
+      registros.forEach(r => {
+        totalRegistrosMes += 1;
+        const contaComoFalta = !naoConta.includes((r.status || "").toUpperCase());
+        if (contaComoFalta) {
+          totalFaltasMes += 1;
+
+          // por dia
+          if (!faltasPorDia[data]) faltasPorDia[data] = 0;
+          faltasPorDia[data] += 1;
+
+          // por setor
+          const setor = r.setor || "SEM SETOR";
+          if (!faltasPorSetor[setor]) faltasPorSetor[setor] = 0;
+          faltasPorSetor[setor] += 1;
+
+          // por turno
+          const turno = r.turno || "SEM TURNO";
+          if (!faltasPorTurno[turno]) faltasPorTurno[turno] = 0;
+          faltasPorTurno[turno] += 1;
+        }
+      });
+    }
+  });
+
+  const resumoEl = document.getElementById("resumoMes");
+  if (totalRegistrosMes === 0) {
+    resumoEl.textContent = "Não há registros salvos para este mês.";
+  } else {
+    resumoEl.textContent = `Mês: ${mesSel} — Total de lançamentos: ${totalRegistrosMes} | Total de faltas (considerando Falta, Atestado, Suspensão, Abandono): ${totalFaltasMes}`;
+  }
+
+  // Preparar dados para gráficos
+
+  // 1) Faltas por dia
+  const diasOrdenados = Object.keys(faltasPorDia).sort();
+  const dadosDias = diasOrdenados.map(d => faltasPorDia[d]);
+
+  // 2) Faltas por setor
+  const setoresOrdenados = Object.keys(faltasPorSetor).sort((a,b) => a.localeCompare(b, "pt-BR"));
+  const dadosSetores = setoresOrdenados.map(s => faltasPorSetor[s]);
+
+  // 3) Faltas por turno
+  const turnosOrdenados = Object.keys(faltasPorTurno).sort();
+  const dadosTurnos = turnosOrdenados.map(t => faltasPorTurno[t]);
+
+  // Destruir gráficos antigos (se existirem)
+  if (graficoFaltasDia) graficoFaltasDia.destroy();
+  if (graficoFaltasSetor) graficoFaltasSetor.destroy();
+  if (graficoFaltasTurno) graficoFaltasTurno.destroy();
+
+  const ctxDia = document.getElementById("graficoFaltasDia").getContext("2d");
+  const ctxSetor = document.getElementById("graficoFaltasSetor").getContext("2d");
+  const ctxTurno = document.getElementById("graficoFaltasTurno").getContext("2d");
+
+  graficoFaltasDia = new Chart(ctxDia, {
+    type: "bar",
+    data: {
+      labels: diasOrdenados,
+      datasets: [{
+        label: "Faltas por dia",
+        data: dadosDias
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true },
+        title: { display: false }
+      },
+      scales: {
+        x: { ticks: { autoSkip: true, maxTicksLimit: 10 } },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  graficoFaltasSetor = new Chart(ctxSetor, {
+    type: "bar",
+    data: {
+      labels: setoresOrdenados,
+      datasets: [{
+        label: "Faltas por setor",
+        data: dadosSetores
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      plugins: {
+        legend: { display: true },
+        title: { display: false }
+      },
+      scales: {
+        x: { beginAtZero: true }
+      }
+    }
+  });
+
+  graficoFaltasTurno = new Chart(ctxTurno, {
+    type: "doughnut",
+    data: {
+      labels: turnosOrdenados,
+      datasets: [{
+        label: "Faltas por turno",
+        data: dadosTurnos
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "bottom" },
+        title: { display: false }
+      }
+    }
+  });
+}
+
+///////////////////////////////////////////////////
+// INICIALIZAÇÃO
+///////////////////////////////////////////////////
+preencherSelectSetor();
+atualizarListaDatasHistorico();
+atualizarListaMesesHistorico();
+carregarTabela(funcionarios);
+
+</script>
+
+</body>
+</html>
